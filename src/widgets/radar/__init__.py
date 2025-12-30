@@ -5,6 +5,7 @@ from PySide6.QtGui import QMatrix4x4
 from src.gl.GLGeometry import GLGeometry, GLPrimitives
 from src.gl.BaseOpenGLWidget import BaseOpenGLWidget, Drawable
 
+from OpenGL.GL import glDisable, glEnable, GL_LINE_SMOOTH
 
 @dataclass
 class Plane:
@@ -36,6 +37,8 @@ class RadarScopeGL(BaseOpenGLWidget):
         self.circle = None
         self.line = None
 
+        self.plane_icon = None
+
     def init_geometry(self):
         self.circle = GLPrimitives.circle()
         self.plane_icon = GLPrimitives.circle(disc=True)
@@ -45,8 +48,10 @@ class RadarScopeGL(BaseOpenGLWidget):
         # Range rings
         for r in [0.2, 0.4, 0.6, 0.8]:
             def draw_ring(w, radius=r):
+                glDisable(GL_LINE_SMOOTH)
                 w.set_color(0.1, 0.24, 0.1, 1.0)
                 w.draw_at(self.circle, scale=radius)
+                glEnable(GL_LINE_SMOOTH)
             self.static_layer.add(draw_ring, z_order=0)
 
         # Sweep line (animated, but part of static visual structure)
@@ -60,6 +65,8 @@ class RadarScopeGL(BaseOpenGLWidget):
 
     def update_planes(self, planes: list):
         """Called when new ADS-B data arrives."""
+        if not self.plane_icon: return
+        
         self.dynamic_layer.clear()
         self.clear_texts()
 
@@ -75,4 +82,5 @@ class RadarScopeGL(BaseOpenGLWidget):
                 y=plane.y + 0.02,
                 color=(0, 230, 230),
                 align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+                z_order=-1,
             )

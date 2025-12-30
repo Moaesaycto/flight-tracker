@@ -9,7 +9,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 import numpy as np
 
-from OpenGL.GL import (glEnable, glBlendFunc, glViewport,
+from OpenGL.GL import (glEnable, glBlendFunc, glViewport, glClearColor,
                        glUniform4f, glUniformMatrix4fv, glClear, glDisable)
 from OpenGL.GL import (GL_BLEND, GL_LINE_SMOOTH, GL_COLOR_BUFFER_BIT,
                        GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_FALSE)
@@ -93,7 +93,6 @@ class BaseOpenGLWidget(QOpenGLWidget):
         self._model_data = np.zeros(16, dtype=np.float32)
 
         # Text rendering
-        self._font = QFont("Monospace", 12)
         self.texts: list[dict] = []
 
         # Timer for animations if needed
@@ -106,6 +105,7 @@ class BaseOpenGLWidget(QOpenGLWidget):
             self.timer.start(1000 // config.getint('GUI', 'fps'))
 
     def initializeGL(self) -> None:
+        glClearColor(0.0, 0.0, 0.0, 1.0)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_LINE_SMOOTH)
@@ -123,6 +123,8 @@ class BaseOpenGLWidget(QOpenGLWidget):
 
         self.init_geometry()
         self.init_static_layer()
+
+        glClear(GL_COLOR_BUFFER_BIT)
 
         return super().initializeGL()
 
@@ -144,13 +146,13 @@ class BaseOpenGLWidget(QOpenGLWidget):
         self.dynamic_layer.draw_all(self)
 
         self.shader.release()
-        
+
         # Reset OpenGL state for QPainter
         glDisable(GL_BLEND)
         glDisable(GL_LINE_SMOOTH)
-        
+
         self._draw_texts()
-        
+
         # Restore OpenGL state
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -192,35 +194,31 @@ class BaseOpenGLWidget(QOpenGLWidget):
 
     def _draw_texts(self):
         painter = QPainter(self)
-        painter.setFont(self._font)
         metrics = painter.fontMetrics()
 
         for t in self.texts:
+            painter.setFont(t['font'])
             painter.setPen(QColor(*t["color"]))
             px, py = self._gl_to_pixel(t["x"], t["y"])
-            
+
             # Get text bounds
-            text_rect = metrics.boundingRect(
-                QRectF(0, 0, 1000, 1000).toRect(),
-                t["align"],
-                t["text"]
-            )
-            
+            text_rect = painter.fontMetrics().boundingRect(t["text"])
+
             # Horizontal anchor
             if t["align"] & Qt.AlignmentFlag.AlignHCenter:
                 px -= text_rect.width() // 2
             elif t["align"] & Qt.AlignmentFlag.AlignRight:
                 px -= text_rect.width()
-            
+
             # Vertical anchor
             if t["align"] & Qt.AlignmentFlag.AlignVCenter:
                 py -= text_rect.height() // 2
             elif t["align"] & Qt.AlignmentFlag.AlignBottom:
                 py -= text_rect.height()
-            
+
             text_rect.moveLeft(int(px))
             text_rect.moveTop(int(py))
-            
+
             painter.drawText(text_rect, t["align"], t["text"])
 
         painter.end()
@@ -233,13 +231,18 @@ class BaseOpenGLWidget(QOpenGLWidget):
 
     def add_text(self, text: str, x: float, y: float,
                  color: tuple = (0, 230, 230),
+                 size: int = config.getint("GUI", "font_size"),
+                 font: str = config.get("GUI", "font"),
+                 z_order: int = 0,
                  align: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop):
         self.texts.append({
             "text": text,
             "x": x,
             "y": y,
             "color": color,
-            "align": align
+            "align": align,
+            "font": QFont(font, size),
+            "z_order": z_order,
         })
 
     def clear_texts(self): self.texts.clear()
