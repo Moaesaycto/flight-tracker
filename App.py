@@ -117,5 +117,6 @@ def get_gps_location():
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    # listen_to_dump1090()
-    get_gps_location()
+    listen_to_dump1090()
+    # get_gps_location()
+    # app = QApplication

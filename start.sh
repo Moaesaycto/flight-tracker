@@ -37,8 +37,11 @@ fi
 echo "Compiling dump1090..."
 cd "$DUMP1090_DIR"
 make
+echo "Compiled dump1090 successfully"
 
+echo "Starting dump1090..."
 "$DUMP1090_DIR/dump1090" --net --quiet &
+sleep 3
 echo "dump1090 started in background!"
 
 cd "$BASE_DIR"

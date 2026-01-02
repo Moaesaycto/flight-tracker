@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from datetime import datetime
+from typing import List
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QMatrix4x4
@@ -7,14 +9,31 @@ from src.gl.BaseOpenGLWidget import BaseOpenGLWidget, Drawable
 
 from OpenGL.GL import glDisable, glEnable, GL_LINE_SMOOTH
 
+
 @dataclass
 class Plane:
     """Represents a tracked aircraft."""
+    hexIdent: str
+    lastGenUpdate: datetime
+    lastLogUpdate: datetime
+
     callsign: str
     x: float  # Normalized position (-1 to 1)
     y: float
     heading: float  # Degrees
-    altitude: int | None = None
+    altitude: int = 0
+    groundSpeed: int = 0
+    track: int = 0
+    latitude: float = 0
+    longitude: float = 0
+    verticalRate: int = 0
+    squark: str | None = None
+
+    # Flags
+    alert: bool = False
+    emergency: bool = False
+    spi: bool = False
+    onGround: bool = True
 
     def create_drawable(self, icon: GLGeometry) -> Drawable:
         def draw(widget: BaseOpenGLWidget):
@@ -28,6 +47,61 @@ class Plane:
             icon.draw()
 
         return Drawable(draw_func=draw, z_order=10)
+
+    def update(self, data: List[str]) -> None:
+        transmissionType, messageType = data[0:2]
+
+        genDate, genTime, logDate, logTime = data[6:11]
+        self.lastGenUpdate = datetime.strptime(
+            f"{genDate} {genTime}000", "%m/%d/%y %H:%M:%S.%f")
+        self.lastLogUpdate = datetime.strptime(
+            f"{logDate} {logTime}000", "%m/%d/%y %H:%M:%S.%f")
+
+        if transmissionType == "MSG":
+            # ES Identification and Category
+            if messageType == "1":
+                self.callsign = data[10]
+
+            # ES Surface Position Message
+            elif messageType == "2":
+                self.altitude, self.groundSpeed, self.track = [
+                    int(d) for d in data[11:14]]
+
+                self.latitude, self.longitude = [float(d) for d in data[14:16]]
+                self.onGround = data[21] != "0"
+
+            # ES Airborne Position Message
+            elif messageType == "3":
+                self.altitude = int(data[11])
+                self.latitude, self.longitude = [float(d) for d in data[14:17]]
+                self.alert, self.emergency, self.spi, self.onGround = [
+                    d != "0" for d in data[18:22]]
+
+            # ES Airborne Velocity Message
+            elif messageType == "4":
+                self.groundSpeed, self.track = [int(d) for d in data[12:14]]
+                self.verticalRate = int(data[16])
+
+            # Surveillance Alt Message
+            elif messageType == "5":
+                self.altitude = int(data[11])
+                self.alert, self.spi, self.onGround = data[18] != "0", data[20] != "0", data[21] != "0"
+
+            # Surveillance ID Message
+            elif messageType == "6":
+                self.altitude = int(data[11])
+                self.squark = data[18]
+                self.alert, self.emergency, self.spi, self.onGround = [
+                    d != "0" for d in data[18:22]]
+
+            # Air To Air Message
+            elif messageType == "7":
+                self.altitude = int(data[11])
+                self.onGround = data[21] != "0"
+
+            # All Call Reply
+            elif messageType == "8":
+                self.onGround = data[21] != "0"
 
 
 class RadarScopeGL(BaseOpenGLWidget):
@@ -65,8 +139,9 @@ class RadarScopeGL(BaseOpenGLWidget):
 
     def update_planes(self, planes: list):
         """Called when new ADS-B data arrives."""
-        if not self.plane_icon: return
-        
+        if not self.plane_icon:
+            return
+
         self.dynamic_layer.clear()
         self.clear_texts()
 
