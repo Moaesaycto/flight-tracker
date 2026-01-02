@@ -1,117 +1,38 @@
-from dataclasses import dataclass
-from datetime import datetime
-from typing import List
+import configparser
+import socket
+from typing import Dict
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QMatrix4x4
-from src.gl.GLGeometry import GLGeometry, GLPrimitives
-from src.gl.BaseOpenGLWidget import BaseOpenGLWidget, Drawable
-
+from PySide6.QtCore import Qt, QThread, Slot
+from src.gl.GLGeometry import GLPrimitives
+from src.gl.BaseOpenGLWidget import BaseOpenGLWidget
 from OpenGL.GL import glDisable, glEnable, GL_LINE_SMOOTH
 
+from src.widgets.radar.Plane import Plane
+from src.widgets.radar.ADSBSocketWorker import ADSBSocketWorker
 
-@dataclass
-class Plane:
-    """Represents a tracked aircraft."""
-    hexIdent: str
-    lastGenUpdate: datetime
-    lastLogUpdate: datetime
-
-    callsign: str
-    x: float  # Normalized position (-1 to 1)
-    y: float
-    heading: float  # Degrees
-    altitude: int = 0
-    groundSpeed: int = 0
-    track: int = 0
-    latitude: float = 0
-    longitude: float = 0
-    verticalRate: int = 0
-    squark: str | None = None
-
-    # Flags
-    alert: bool = False
-    emergency: bool = False
-    spi: bool = False
-    onGround: bool = True
-
-    def create_drawable(self, icon: GLGeometry) -> Drawable:
-        def draw(widget: BaseOpenGLWidget):
-            # Draw plane icon
-            widget.set_color(0.0, 0.9, 0.9, 1.0)
-            model = QMatrix4x4()
-            model.translate(self.x, self.y, 0.0)
-            model.rotate(self.heading, 0.0, 0.0, 1.0)
-            model.scale(0.03)
-            widget.set_model(model)
-            icon.draw()
-
-        return Drawable(draw_func=draw, z_order=10)
-
-    def update(self, data: List[str]) -> None:
-        transmissionType, messageType = data[0:2]
-
-        genDate, genTime, logDate, logTime = data[6:11]
-        self.lastGenUpdate = datetime.strptime(
-            f"{genDate} {genTime}000", "%m/%d/%y %H:%M:%S.%f")
-        self.lastLogUpdate = datetime.strptime(
-            f"{logDate} {logTime}000", "%m/%d/%y %H:%M:%S.%f")
-
-        if transmissionType == "MSG":
-            # ES Identification and Category
-            if messageType == "1":
-                self.callsign = data[10]
-
-            # ES Surface Position Message
-            elif messageType == "2":
-                self.altitude, self.groundSpeed, self.track = [
-                    int(d) for d in data[11:14]]
-
-                self.latitude, self.longitude = [float(d) for d in data[14:16]]
-                self.onGround = data[21] != "0"
-
-            # ES Airborne Position Message
-            elif messageType == "3":
-                self.altitude = int(data[11])
-                self.latitude, self.longitude = [float(d) for d in data[14:17]]
-                self.alert, self.emergency, self.spi, self.onGround = [
-                    d != "0" for d in data[18:22]]
-
-            # ES Airborne Velocity Message
-            elif messageType == "4":
-                self.groundSpeed, self.track = [int(d) for d in data[12:14]]
-                self.verticalRate = int(data[16])
-
-            # Surveillance Alt Message
-            elif messageType == "5":
-                self.altitude = int(data[11])
-                self.alert, self.spi, self.onGround = data[18] != "0", data[20] != "0", data[21] != "0"
-
-            # Surveillance ID Message
-            elif messageType == "6":
-                self.altitude = int(data[11])
-                self.squark = data[18]
-                self.alert, self.emergency, self.spi, self.onGround = [
-                    d != "0" for d in data[18:22]]
-
-            # Air To Air Message
-            elif messageType == "7":
-                self.altitude = int(data[11])
-                self.onGround = data[21] != "0"
-
-            # All Call Reply
-            elif messageType == "8":
-                self.onGround = data[21] != "0"
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 
 class RadarScopeGL(BaseOpenGLWidget):
-    def __init__(self):
+    def __init__(self, lat: float, lon: float):
         super().__init__(animated=True)
+        self.lat = lat
+        self.lon = lon
+
+        self.setMinimumSize(600, 600)
+        self.planes = {}
+
         self.sweep_angle = 0.0
         self.circle = None
         self.line = None
 
         self.plane_icon = None
+
+    @Slot(dict)
+    def handle_socket_update(self, updated_planes):
+        self.planes = updated_planes
+        self.update_planes(list(self.planes.values()))
 
     def init_geometry(self):
         self.circle = GLPrimitives.circle()
@@ -119,14 +40,15 @@ class RadarScopeGL(BaseOpenGLWidget):
         self.line = GLPrimitives.line(0, 0, 1, 0)
 
     def init_static_layer(self):
-        # Range rings
-        for r in [0.2, 0.4, 0.6, 0.8]:
+        r, h = 0, 1/(config.getint('RADAR', 'ring_count') + 1)
+        while r < 1:
             def draw_ring(w, radius=r):
                 glDisable(GL_LINE_SMOOTH)
                 w.set_color(0.1, 0.24, 0.1, 1.0)
                 w.draw_at(self.circle, scale=radius)
                 glEnable(GL_LINE_SMOOTH)
             self.static_layer.add(draw_ring, z_order=0)
+            r += h
 
         # Sweep line (animated, but part of static visual structure)
         def draw_sweep(w):
@@ -138,23 +60,31 @@ class RadarScopeGL(BaseOpenGLWidget):
         self.sweep_angle = (self.sweep_angle + 90.0 * delta) % 360
 
     def update_planes(self, planes: list):
-        """Called when new ADS-B data arrives."""
-        if not self.plane_icon:
-            return
+        if not self.plane_icon: return
 
+        r = config.getfloat('RADAR', 'radius')
+        origin_lat, origin_lon = self.lat, self.lon
         self.dynamic_layer.clear()
         self.clear_texts()
 
         for plane in planes:
-            def draw_plane(w, p=plane):
+            print(str(plane))
+            if plane.latitude is None or plane.longitude is None: continue
+
+            gl_x = (plane.longitude - origin_lon) / r
+            gl_y = (plane.latitude - origin_lat) / r
+
+            def draw_plane(w, x=gl_x, y=gl_y):
                 w.set_color(0.0, 0.9, 0.9, 1.0)
-                w.draw_at(self.plane_icon, x=p.x, y=p.y, scale=0.02)
+                w.draw_at(self.plane_icon, x=x, y=y, scale=0.02)
+            
             self.dynamic_layer.add(draw_plane, z_order=10)
 
+            callsign = plane.callsign.strip() if plane.callsign else "UNK"
             self.add_text(
-                f"{plane.callsign}",
-                x=plane.x + 0.04,
-                y=plane.y + 0.02,
+                callsign,
+                x=gl_x + 0.03,
+                y=gl_y + 0.02,
                 color=(0, 230, 230),
                 align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
                 z_order=-1,
