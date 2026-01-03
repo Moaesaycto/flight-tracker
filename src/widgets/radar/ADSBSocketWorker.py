@@ -31,7 +31,6 @@ class ADSBSocketWorker(QObject):
             while self._running:
                 QCoreApplication.processEvents()
                 try:
-
                     data = sock.recv(1024).decode('utf-8')
                     if not data:
                         break
@@ -58,7 +57,7 @@ class ADSBSocketWorker(QObject):
                             hid for hid, p in self.planes.items()
                             if (now - p.lastLogUpdate)
                         ]
-                        self.planes_updated.emit(self.planes)
+                        self.planes_updated.emit(self.planes.copy())
                     except Exception as e:
                         print("Failed to update: ", line, {e},  "END")
         except Exception as e:

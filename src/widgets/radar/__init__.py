@@ -68,7 +68,6 @@ class RadarScopeGL(BaseOpenGLWidget):
         self.clear_texts()
 
         for plane in planes:
-            print(str(plane))
             if plane.latitude is None or plane.longitude is None: continue
 
             gl_x = (plane.longitude - origin_lon) / r
@@ -80,7 +79,7 @@ class RadarScopeGL(BaseOpenGLWidget):
             
             self.dynamic_layer.add(draw_plane, z_order=10)
 
-            callsign = plane.callsign.strip() if plane.callsign else "UNK"
+            callsign = plane.callsign.strip() if plane.callsign else ""
             self.add_text(
                 callsign,
                 x=gl_x + 0.03,
