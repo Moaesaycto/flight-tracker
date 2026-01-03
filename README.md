@@ -1,20 +1,23 @@
 # Moae's Flight Tracker
 
-**Type:** Application / Live Tracker · **Tech Stack:** PySide6, OpenGL · **Hardware:** RTL-SDR, GPS · **Status:** Active
+**Type:** Application / Live Tracker · **Tech Stack:** PySide6, OpenGL, dump1090 · **Hardware:** RTL-SDR, GPS · **Status:** Active
 
 
 ## **Overview**
 
-This flight tracker has been designed to track planes without the need of external APIs or even an internet connection. You connect the relevant pieces of hardware and run `start.sh`, and it should automatically set everything up for you. I personally use the following:
+This flight tracker has been designed to track planes without the need of external APIs or even an internet connection. You connect the relevant pieces of hardware and run `start.sh`; it should automatically set everything up for you. I personally use the following:
 
 - RTL-SDR BLOG V3
 - TEL0138 (GPS Tracker)
 
-This software is still in active development and is not ready for actual use.
+This software is super simple, and will be updated in the future if the inspiration hits me again. But for now, this is a very basic example as a proof of concept.
 
 ### **Features**
 
-Tracking is done with [dump1090](https://github.com/antirez/dump1090) and GPS tracking is done through [pynmea2](https://github.com/Knio/pynmea2). Follow the setup below to set up the hardware and prepare the config file, and simply run the `start.sh` script to get it up and running. Enjoy!
+Tracking is done with [dump1090](https://github.com/antirez/dump1090) and GPS tracking is done through [pynmea2](https://github.com/Knio/pynmea2). Follow the setup below to set up the hardware and prepare the config file, and simply run the `start.sh` script to get it up and running.
+
+- The script uses [ADS-B](https://en.wikipedia.org/wiki/Automatic_Dependent_Surveillance%E2%80%93Broadcast), which is read in the [SBS](https://web.archive.org/web/20250618023507/https://woodair.net/SBS/Article/Barebones42_Socket_Data.htm) format.
+- The radar itself is rendered using a custom OpenGL engine with the aid of a geometry primitive class to create objects simply. This may be used in the future to add features.
 
 ### **Purpose**
 
