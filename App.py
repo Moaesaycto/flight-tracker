@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QMainWindow, QApplication, QHBoxLayout, QWidget
 from PySide6.QtCore import QThread
+from PySide6.QtGui import QSurfaceFormat
 
 from src.widgets.radar import RadarScopeGL
 from src.widgets.radar.ADSBSocketWorker import ADSBSocketWorker
@@ -42,6 +43,10 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
+    fmt = QSurfaceFormat()
+    fmt.setVersion(3, 3)
+    fmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+    QSurfaceFormat.setDefaultFormat(fmt)
     app = QApplication([])
     main = MainWindow()
     main.show()

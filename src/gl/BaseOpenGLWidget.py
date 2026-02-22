@@ -202,7 +202,7 @@ class BaseOpenGLWidget(QOpenGLWidget):
             px, py = self._gl_to_pixel(t["x"], t["y"])
 
             # Get text bounds
-            text_rect = painter.fontMetrics().boundingRect(t["text"])
+            text_rect = metrics.boundingRect(t["text"]).adjusted(-2, 0, 2, 0)
 
             # Horizontal anchor
             if t["align"] & Qt.AlignmentFlag.AlignHCenter:

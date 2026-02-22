@@ -23,8 +23,6 @@ Tracking is done with [dump1090](https://github.com/antirez/dump1090) and GPS tr
 
 This software is a passion project. I enjoy working with complex systems and live simulations/tracking, and this felt like the perfect blend that connects my other passion for aviation and aerospace. The software in this project is also intentionally complicated because I wanted to strengthen my knowledge of OpenGL and PySide6.
 
-## Windows Setup
-
 ### Setting up the RTL-SDR
 Linux and Mac users should be able to just run the script to begin the process, but for Windows you need to configure WSL. In PowerShell (Admin), type `wsl --install` and restart. Open Ubuntu from the Start menu and set up build tools:
 
