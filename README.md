@@ -1,6 +1,6 @@
 # Moae's Flight Tracker
 
-**Type:** Application / Live Tracker · **Tech Stack:** PySide6, OpenGL, dump1090 · **Hardware:** RTL-SDR, GPS · **Status:** Active
+**Type:** Application / Live Tracker · **Tech Stack:** PySide6, OpenGL, dump1090 · **Hardware:** RTL-SDR, GPS · **Status:** [Moved](https://github.com/Moaesaycto/OpenAir)
 
 
 ## **Overview**
